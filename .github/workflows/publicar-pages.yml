@@ -1,0 +1,63 @@
+name: Atualizar e publicar relatorio
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - analisar_limitless.py
+      - .github/workflows/publicar-pages.yml
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  gerar-e-publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restaurar cache do Limitless
+        uses: actions/cache@v4
+        with:
+          path: .cache_limitless
+          key: limitless-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            limitless-${{ runner.os }}-
+
+      - name: Gerar relatorio
+        env:
+          LIMITLESS_API_KEY: ${{ secrets.LIMITLESS_API_KEY }}
+        run: python3 analisar_limitless.py --saida site --nao-abrir
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Preparar arquivos do site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
