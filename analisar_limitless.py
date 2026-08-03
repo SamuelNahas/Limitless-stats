@@ -177,11 +177,15 @@ TOURNAMENT_ROW_RE = re.compile(
 
 def parse_tournament_page(page_html: str) -> tuple[list[dict], int]:
     tournaments = []
+    unidentified_rows = 0
     for match in TOURNAMENT_ROW_RE.finditer(page_html):
         body = match.group("body")
-        id_match = re.search(r'/tournament/([0-9a-f]+)/standings', body)
+        # IDs do Limitless podem ser hashes ou slugs personalizados, como
+        # "ban-pult". Capturamos qualquer segmento válido da URL do torneio.
+        id_match = re.search(r'/tournament/([^/"?#]+)(?:/|["?#])', body)
         format_match = re.search(r'class="format"[^>]+data-tooltip="([^"]+)"', body)
         if not id_match:
+            unidentified_rows += 1
             continue
         tournaments.append(
             {
@@ -192,6 +196,10 @@ def parse_tournament_page(page_html: str) -> tuple[list[dict], int]:
                 "players": int(match.group("players")),
                 "format": html.unescape(format_match.group(1)) if format_match else match.group("format_id"),
             }
+        )
+    if unidentified_rows:
+        log(
+            f"Aviso: {unidentified_rows} torneio(s) da listagem não tinham uma URL reconhecível."
         )
     max_page_match = re.search(r'class="pagination" data-current="\d+" data-max="(\d+)"', page_html)
     max_page = int(max_page_match.group(1)) if max_page_match else 1
