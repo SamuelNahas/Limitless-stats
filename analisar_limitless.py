@@ -199,10 +199,14 @@ def parse_tournament_page(page_html: str) -> tuple[list[dict], int]:
 
 
 def fetch_tournaments(args, cache: Cache) -> list[dict]:
+    cutoff = args.data_inicial or (
+        datetime.now(timezone.utc) - timedelta(days=args.dias)
+    )
+    time_filter = "all" if args.data_inicial else "4weeks"
     query = {
         "game": "PTCG",
         "type": "online",
-        "time": "4weeks",
+        "time": time_filter,
         "show": "100",
         "page": "1",
     }
@@ -213,16 +217,26 @@ def fetch_tournaments(args, cache: Cache) -> list[dict]:
         query["page"] = str(page)
         return f"{BASE_URL}/tournaments/completed?{urllib.parse.urlencode(query)}"
 
-    first = cache.get_text("completed_page_1_" + args.formato, page_url(1), max_age_hours=1)
+    cache_tag = f"{args.formato}_{time_filter}"
+    first = cache.get_text(
+        f"completed_page_1_{cache_tag}", page_url(1), max_age_hours=1
+    )
     tournaments, max_page = parse_tournament_page(first)
     for page in range(2, max_page + 1):
         page_html = cache.get_text(
-            f"completed_page_{page}_{args.formato}", page_url(page), max_age_hours=1
+            f"completed_page_{page}_{cache_tag}", page_url(page), max_age_hours=1
         )
         parsed, _ = parse_tournament_page(page_html)
         tournaments.extend(parsed)
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=args.dias)
+        # A listagem com time=all vem da mais nova para a mais antiga. Assim que
+        # uma página inteira estiver antes do corte, não há motivo para baixar o
+        # restante do histórico.
+        if args.data_inicial and parsed and max(
+            parse_iso(tournament["date"]) for tournament in parsed
+        ) < cutoff:
+            break
+
     result = [
         t
         for t in tournaments
@@ -237,7 +251,6 @@ def fetch_tournaments(args, cache: Cache) -> list[dict]:
     if args.max_torneios:
         unique = unique[: args.max_torneios]
     return unique
-
 
 def parse_standings(page_html: str, tournament: dict) -> list[dict]:
     entries = []
@@ -1278,6 +1291,460 @@ def render_variant_summary(analysis: dict | None, mode: str, prefix: str = "deck
     )
 
 
+
+def build_laboratory_payload(
+    tournaments: list[dict], data: dict, variants: dict, args
+) -> dict:
+    tournament_payload = []
+    for tournament in sorted(tournaments, key=lambda item: item["date"], reverse=True):
+        modes = sorted(
+            {
+                value
+                for value in tournament.get("phase_modes", {}).values()
+                if value in ("BO1", "BO3")
+            }
+        )
+        tournament_payload.append(
+            {
+                "id": tournament["id"],
+                "name": tournament["name"],
+                "date": tournament["date"],
+                "modes": modes,
+                "entries": [
+                    {
+                        "deck": entry["deck_id"],
+                        "placing": entry["placing"],
+                    }
+                    for entry in tournament.get("entries", [])
+                    if entry.get("placing") is not None
+                ],
+            }
+        )
+
+    decks_by_mode = {"BO1": {}, "BO3": {}}
+    for mode in ("BO1", "BO3"):
+        active_entries = data["mode_active_entries"][mode]
+        for stat in data["deck_stats"]:
+            deck_id = stat["deck_id"]
+            entries = stat["entries_by_mode"][mode]
+            aggregate_record = stat["nonmirror_by_mode"][mode]
+            aggregate_matches = record_total(aggregate_record)
+            aggregate_rate = record_score_rate(aggregate_record)
+            if entries < 1 or aggregate_matches < 1:
+                continue
+
+            prior = min(0.65, max(0.35, aggregate_rate or 0.5))
+            matchup_payload = {}
+            for opponent in data["deck_names"]:
+                if opponent == deck_id:
+                    rate, games = 0.5, 0
+                else:
+                    record = data["matchups"][mode][deck_id][opponent]
+                    games = record_total(record)
+                    observed = record_score_rate(record)
+                    rate = (
+                        prior
+                        if observed is None
+                        else (observed * games + prior * args.forca_prior)
+                        / (games + args.forca_prior)
+                    )
+                matchup_payload[opponent] = {
+                    "rate": round(rate, 6),
+                    "games": games,
+                }
+
+            analysis = variants[mode].get(deck_id)
+            raw_profiles = analysis["profiles"] if analysis else []
+            canonical_vector = analysis["canonical"]["vector"] if analysis else {}
+            profiles = []
+            for profile in raw_profiles:
+                if (
+                    profile["entries"] < args.min_listas_variante
+                    or profile["matches"] < args.min_partidas_variante
+                    or profile["distance_from_base"] > args.max_trocas
+                    or sum(profile["vector"].values()) != 60
+                ):
+                    continue
+                profile_entries = [
+                    entry
+                    for entry in profile["entries_all"]
+                    if (entry["tournament_id"], str(entry["player"])) in active_entries
+                    and entry.get("decklist_total") == 60
+                ]
+                representative = representative_entry(profile_entries)
+                if not representative:
+                    continue
+                changes = vector_changes(
+                    canonical_vector, profile["vector"], data["card_catalog"]
+                )
+                profiles.append(
+                    {
+                        "entries": profile["entries"],
+                        "matches": profile["matches"],
+                        "rates": {
+                            opponent: round(rate, 6)
+                            for opponent, rate in profile["rates"].items()
+                        },
+                        "cards": [
+                            {
+                                "key": key,
+                                "count": count,
+                                "name": data["card_catalog"].get(key, {}).get(
+                                    "display", key
+                                ),
+                                "category": data["card_catalog"].get(key, {}).get(
+                                    "category", ""
+                                ),
+                            }
+                            for key, count in profile["vector"].items()
+                        ],
+                        "changes": {
+                            "text": changes_text(changes),
+                            "added": [
+                                {
+                                    "name": item["display"],
+                                    "count": item["count"],
+                                }
+                                for item in changes["added"]
+                            ],
+                            "removed": [
+                                {
+                                    "name": item["display"],
+                                    "count": item["count"],
+                                }
+                                for item in changes["removed"]
+                            ],
+                        },
+                        "source": {
+                            "player": representative["name"],
+                            "placing": representative["placing"],
+                            "tournament": representative["tournament_name"],
+                            "date": representative["tournament_date"],
+                            "url": representative["decklist_url"],
+                        },
+                    }
+                )
+
+            profiles.sort(
+                key=lambda profile: (profile["matches"], profile["entries"]),
+                reverse=True,
+            )
+            profiles = profiles[:15]
+
+            if not profiles:
+                fallback_entries = [
+                    entry
+                    for entry in data["entries_by_deck"][deck_id]
+                    if (entry["tournament_id"], str(entry["player"])) in active_entries
+                    and entry.get("decklist_total") == 60
+                ]
+                representative = representative_entry(fallback_entries)
+                if representative:
+                    profiles.append(
+                        {
+                            "entries": 1,
+                            "matches": aggregate_matches,
+                            "rates": {
+                                opponent: item["rate"]
+                                for opponent, item in matchup_payload.items()
+                            },
+                            "cards": [
+                                {
+                                    "key": key,
+                                    "count": count,
+                                    "name": data["card_catalog"].get(key, {}).get(
+                                        "display", key
+                                    ),
+                                    "category": data["card_catalog"].get(key, {}).get(
+                                        "category", ""
+                                    ),
+                                }
+                                for key, count in representative[
+                                    "decklist_vector"
+                                ].items()
+                            ],
+                            "changes": {
+                                "text": "Lista de 60 cartas com melhor colocação observada para o arquétipo neste modo.",
+                                "added": [],
+                                "removed": [],
+                            },
+                            "source": {
+                                "player": representative["name"],
+                                "placing": representative["placing"],
+                                "tournament": representative["tournament_name"],
+                                "date": representative["tournament_date"],
+                                "url": representative["decklist_url"],
+                            },
+                        }
+                    )
+
+            decks_by_mode[mode][deck_id] = {
+                "name": stat["deck_name"],
+                "entries": entries,
+                "matches": aggregate_matches,
+                "prior": round(prior, 6),
+                "matchups": matchup_payload,
+                "profiles": profiles,
+            }
+
+    return {
+        "tournaments": tournament_payload,
+        "decks": decks_by_mode,
+        "minimumMatchupGames": args.min_jogos_matchup,
+    }
+
+
+def render_laboratory(
+    tournaments: list[dict], data: dict, variants: dict, args
+) -> tuple[str, str, str]:
+    payload = build_laboratory_payload(tournaments, data, variants, args)
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace(
+        "</", "<\\/"
+    )
+    default_recent = max(1, min(10, len(tournaments)))
+    section = f"""
+<h2>Laboratório de torneio hipotético</h2>
+<p class="note">Monte um campo esperado com os melhores colocados dos torneios recentes. O cálculo usa somente dados já coletados nesta página e não faz novas requisições.</p>
+<div class="lab-panel">
+  <div class="lab-controls">
+    <label>Rodadas<input id="labRounds" type="number" min="1" max="20" value="5"></label>
+    <label>Formato<select id="labMode"><option value="BO1">MD1</option><option value="BO3">MD3</option></select></label>
+    <label>Corte<select id="labTop"><option value="4">Top 4</option><option value="8" selected>Top 8</option><option value="16">Top 16</option><option value="32">Top 32</option></select></label>
+    <label>Torneios recentes<input id="labRecent" type="number" min="1" max="{max(1, len(tournaments))}" value="{default_recent}"></label>
+    <button type="button" onclick="runLaboratory()">Calcular melhor deck</button>
+  </div>
+  <div id="labResult" class="lab-result"><p class="note">Escolha os parâmetros e toque em “Calcular melhor deck”.</p></div>
+</div>
+"""
+    dialog = """
+<dialog id="labListDialog">
+  <div class="dialog-head"><div><h2 id="labListTitle">Lista recomendada</h2><p id="labListSource"></p></div><button class="close-button" onclick="closeList('labListDialog')">×</button></div>
+  <div id="labListChanges"></div>
+  <div id="labListCards"></div>
+  <p id="labListWhy" class="explanation"></p>
+  <div class="dialog-actions"><a id="labListLink" class="secondary-button" target="_blank" rel="noopener">Abrir lista observada no Limitless</a><button onclick="closeList('labListDialog')">Fechar</button></div>
+</dialog>
+"""
+    script = r"""
+<script>
+const laboratoryData = __LAB_PAYLOAD__;
+let laboratoryScores = [];
+let laboratoryField = {};
+
+function labEscape(value) {
+  return String(value ?? "").replace(/[&<>"']/g, function (char) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char];
+  });
+}
+function labPercent(value) { return (value * 100).toFixed(1) + "%"; }
+function labCombination(n, k) {
+  k = Math.min(k, n - k);
+  let value = 1;
+  for (let i = 1; i <= k; i++) value = value * (n - k + i) / i;
+  return value;
+}
+function labPositiveChance(rounds, probability) {
+  const target = Math.floor(rounds / 2) + 1;
+  let total = 0;
+  for (let wins = target; wins <= rounds; wins++) {
+    total += labCombination(rounds, wins) * Math.pow(probability, wins) * Math.pow(1 - probability, rounds - wins);
+  }
+  return total;
+}
+function labProfileScore(profile, deck, field) {
+  let expected = 0;
+  for (const [opponent, share] of Object.entries(field)) {
+    const rate = opponent === deck.id
+      ? 0.5
+      : (profile && profile.rates[opponent] != null
+          ? profile.rates[opponent]
+          : (deck.matchups[opponent] ? deck.matchups[opponent].rate : deck.prior));
+    expected += share * rate;
+  }
+  return expected;
+}
+function labBestProfile(deck, field) {
+  if (!deck.profiles.length) return null;
+  return deck.profiles
+    .map(function (profile) {
+      return {profile: profile, expected: labProfileScore(profile, deck, field)};
+    })
+    .sort(function (a, b) {
+      return b.expected - a.expected || b.profile.matches - a.profile.matches;
+    })[0];
+}
+function labMatchupSummary(score, field, positive) {
+  const rows = Object.entries(field)
+    .filter(function (item) { return item[0] !== score.id; })
+    .map(function (item) {
+      const opponent = item[0], share = item[1];
+      const aggregate = score.deck.matchups[opponent];
+      const profileRate = score.profile && score.profile.rates[opponent] != null
+        ? score.profile.rates[opponent]
+        : (aggregate ? aggregate.rate : score.deck.prior);
+      return {
+        name: laboratoryData.decks[score.mode][opponent]
+          ? laboratoryData.decks[score.mode][opponent].name
+          : opponent,
+        rate: profileRate,
+        impact: (profileRate - 0.5) * share
+      };
+    })
+    .filter(function (item) { return positive ? item.rate > 0.505 : item.rate < 0.495; })
+    .sort(function (a, b) { return positive ? b.impact - a.impact : a.impact - b.impact; })
+    .slice(0, 3);
+  return rows.map(function (item) {
+    return labEscape(item.name) + " (" + labPercent(item.rate) + ")";
+  }).join(", ");
+}
+function runLaboratory() {
+  const rounds = Math.max(1, Math.min(20, Number(document.getElementById("labRounds").value) || 5));
+  const mode = document.getElementById("labMode").value;
+  const top = Number(document.getElementById("labTop").value);
+  const recent = Math.max(1, Number(document.getElementById("labRecent").value) || 1);
+  const result = document.getElementById("labResult");
+  const tournaments = laboratoryData.tournaments
+    .filter(function (tournament) { return tournament.modes.includes(mode); })
+    .slice(0, recent);
+
+  if (!tournaments.length) {
+    result.innerHTML = '<div class="warn">Não há torneios ' + (mode === "BO1" ? "MD1" : "MD3") + ' na base para formar o campo.</div>';
+    return;
+  }
+
+  const counts = {};
+  let total = 0;
+  tournaments.forEach(function (tournament) {
+    tournament.entries.forEach(function (entry) {
+      if (entry.placing <= top) {
+        counts[entry.deck] = (counts[entry.deck] || 0) + 1;
+        total += 1;
+      }
+    });
+  });
+  if (!total) {
+    result.innerHTML = '<div class="warn">Nenhuma decklist encontrada dentro do corte escolhido.</div>';
+    return;
+  }
+
+  const field = {};
+  Object.entries(counts).forEach(function (item) { field[item[0]] = item[1] / total; });
+  laboratoryField = field;
+  laboratoryScores = Object.entries(laboratoryData.decks[mode]).map(function (item) {
+    const id = item[0], deck = item[1];
+    deck.id = id;
+    const baseExpected = labProfileScore(null, deck, field);
+    const bestProfile = labBestProfile(deck, field);
+    const expected = bestProfile ? bestProfile.expected : baseExpected;
+    let coverage = 0;
+    Object.entries(field).forEach(function (opponentItem) {
+      const opponent = opponentItem[0], share = opponentItem[1];
+      if (opponent === id || (deck.matchups[opponent] && deck.matchups[opponent].games >= laboratoryData.minimumMatchupGames)) {
+        coverage += share;
+      }
+    });
+    return {
+      id: id,
+      mode: mode,
+      deck: deck,
+      name: deck.name,
+      expected: expected,
+      profile: bestProfile ? bestProfile.profile : null,
+      coverage: coverage,
+      positive: labPositiveChance(rounds, Math.max(0.01, Math.min(0.99, expected)))
+    };
+  }).filter(function (score) {
+    return score.deck.matches >= 5;
+  }).sort(function (a, b) {
+    return b.expected - a.expected || b.deck.matches - a.deck.matches;
+  });
+
+  if (!laboratoryScores.length) {
+    result.innerHTML = '<div class="warn">Amostra insuficiente de matchups para recomendar um deck neste formato.</div>';
+    return;
+  }
+
+  const best = laboratoryScores[0];
+  const fieldLeaders = Object.entries(field)
+    .sort(function (a, b) { return b[1] - a[1]; })
+    .slice(0, 5)
+    .map(function (item) {
+      const deck = laboratoryData.decks[mode][item[0]];
+      return '<span class="lab-chip">' + labEscape(deck ? deck.name : item[0]) + ' ' + labPercent(item[1]) + '</span>';
+    }).join("");
+  const strengths = labMatchupSummary(best, field, true);
+  const risks = labMatchupSummary(best, field, false);
+  const confidence = best.deck.matches >= 150 && best.coverage >= 0.7
+    ? "alta"
+    : (best.deck.matches >= 50 && best.coverage >= 0.4 ? "média" : "baixa");
+  const rows = laboratoryScores.slice(0, 10).map(function (score, index) {
+    const button = score.profile
+      ? '<button type="button" onclick="openLaboratoryList(' + index + ')">Ver lista</button>'
+      : '<span class="note">Sem lista de 60 cartas</span>';
+    return '<tr><td>' + (index + 1) + '</td><td class="deck">' + labEscape(score.name) + '</td><td>' +
+      labPercent(score.expected) + '</td><td>' + (score.expected * rounds).toFixed(2) + '</td><td>' +
+      labPercent(score.positive) + '</td><td>' + labPercent(score.coverage) + '</td><td>' +
+      score.deck.matches + '</td><td>' + button + '</td></tr>';
+  }).join("");
+
+  result.innerHTML =
+    '<div class="lab-field"><strong>Campo estimado (' + total + ' resultados em ' + tournaments.length + ' torneios)</strong><div>' + fieldLeaders + '</div></div>' +
+    '<div class="recommend"><strong>Recomendação: ' + labEscape(best.name) + '</strong><br>' +
+    '<span>Score esperado de ' + (best.expected * rounds).toFixed(2) + ' em ' + rounds +
+    ' rodadas; chance teórica de campanha positiva: ' + labPercent(best.positive) +
+    '; confiança ' + confidence + '.</span><p><strong>Por quê:</strong> é o maior WR ajustado contra o campo escolhido (' +
+    labPercent(best.expected) + '). ' + (strengths ? 'Boas projeções contra ' + strengths + '. ' : '') +
+    (risks ? 'Riscos principais contra ' + risks + '. ' : '') +
+    'A cobertura direta de matchups é ' + labPercent(best.coverage) + '.</p></div>' +
+    '<div class="table-wrap"><table><thead><tr><th>#</th><th>Deck</th><th>WR ajustado</th><th>Score esperado</th><th>Campanha positiva</th><th>Cobertura</th><th>Partidas</th><th>Lista</th></tr></thead><tbody>' +
+    rows + '</tbody></table></div>' +
+    '<p class="note">Projeção binomial baseada em resultados históricos suavizados. Não mede habilidade individual, ordem dos pareamentos, empates intencionais nem mudanças futuras do metagame.</p>';
+}
+function openLaboratoryList(index) {
+  const score = laboratoryScores[index];
+  if (!score || !score.profile) return;
+  const profile = score.profile;
+  document.getElementById("labListTitle").textContent = score.name + " — " + (score.mode === "BO1" ? "MD1" : "MD3");
+  document.getElementById("labListSource").textContent =
+    "Lista de " + profile.source.player + ", " + profile.source.placing + "º lugar em " +
+    profile.source.tournament + " (" + new Date(profile.source.date).toLocaleDateString("pt-BR") + ").";
+
+  const removed = profile.changes.removed.length
+    ? profile.changes.removed.map(function (card) { return '<li class="changed-remove">−' + card.count + ' ' + labEscape(card.name) + '</li>'; }).join("")
+    : "<li>Nenhuma retirada em relação à lista-base</li>";
+  const added = profile.changes.added.length
+    ? profile.changes.added.map(function (card) { return '<li class="changed-add">+' + card.count + ' ' + labEscape(card.name) + '</li>'; }).join("")
+    : "<li>Nenhuma adição em relação à lista-base</li>";
+  document.getElementById("labListChanges").innerHTML =
+    '<div class="change-box"><div><h3>Retirar</h3><ul>' + removed + '</ul></div><div><h3>Adicionar</h3><ul>' + added + '</ul></div></div>';
+
+  const categories = [["pokemon", "Pokémon"], ["trainer", "Treinadores"], ["energy", "Energias"]];
+  document.getElementById("labListCards").innerHTML = '<div class="deck-columns">' + categories.map(function (category) {
+    const cards = profile.cards.filter(function (card) { return card.category === category[0]; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name, "pt-BR"); });
+    if (!cards.length) return "";
+    const total = cards.reduce(function (sum, card) { return sum + card.count; }, 0);
+    return '<div><h4>' + category[1] + ': ' + total + '</h4><ul class="deck-list">' +
+      cards.map(function (card) { return '<li><b>' + card.count + '</b> ' + labEscape(card.name) + '</li>'; }).join("") +
+      '</ul></div>';
+  }).join("") + '</div>';
+
+  const strengths = labMatchupSummary(score, laboratoryField, true);
+  document.getElementById("labListWhy").innerHTML =
+    '<strong>O que mudou e por quê:</strong> ' + labEscape(profile.changes.text) +
+    ' Esta variante foi observada em ' + profile.entries + ' entradas e ' + profile.matches +
+    ' partidas. Para o campo escolhido, projeta ' + labPercent(score.expected) +
+    (strengths ? ', com os maiores ganhos ponderados contra ' + strengths : '') + '.';
+  const link = document.getElementById("labListLink");
+  link.href = profile.source.url;
+  link.style.display = profile.source.url ? "inline-block" : "none";
+  openList("labListDialog");
+}
+document.addEventListener("DOMContentLoaded", runLaboratory);
+</script>
+""".replace("__LAB_PAYLOAD__", payload_json)
+    return section, dialog, script
+
 def build_html(
     tournaments: list[dict],
     data: dict,
@@ -1287,6 +1754,19 @@ def build_html(
     args,
 ) -> str:
     generated = datetime.now().astimezone().strftime("%d/%m/%Y %H:%M")
+    period_label = (
+        f"desde {args.data_inicial.strftime('%d/%m/%Y')}"
+        if args.data_inicial
+        else f"últimos {args.dias} dias"
+    )
+    players_label = (
+        "sem corte mínimo de jogadores"
+        if args.min_jogadores <= 1
+        else f"mínimo {args.min_jogadores} jogadores"
+    )
+    laboratory_section, laboratory_dialog, laboratory_script = render_laboratory(
+        tournaments, data, variants, args
+    )
 
     def ranking_rows(mode: str) -> str:
         rows = []
@@ -1435,18 +1915,19 @@ def build_html(
 
     return f"""<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Metagame Limitless — últimas {args.dias} dias</title>
+<title>Metagame Limitless — {period_label}</title>
 <style>
 :root{{--bg:#0c1220;--card:#151e2f;--line:#2b3952;--text:#edf3ff;--muted:#9eabc1;--accent:#75a7ff;--good:#163f34;--bad:#4a2027;--neutral:#33361f}}
 *{{box-sizing:border-box}} body{{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,Segoe UI,sans-serif}}
 main{{max-width:1500px;margin:auto;padding:28px}} h1{{font-size:30px;margin:0 0 4px}} h2{{margin-top:32px}} h3{{margin:8px 0}}
 .sub,.note{{color:var(--muted)}} .cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:20px 0}}
-.card,.recommend,.warn,.variant-card,.user-list-card{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}} .card strong{{display:block;font-size:24px}}
+.card,.recommend,.warn,.variant-card,.user-list-card,.lab-panel{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}} .card strong{{display:block;font-size:24px}}
 .recommend{{border-color:#3f75cf;font-size:16px}} .recommend span{{color:var(--muted)}} .warn{{border-color:#9b6c30}}
 .table-wrap{{overflow:auto;border:1px solid var(--line);border-radius:8px}} table{{border-collapse:collapse;width:100%;background:var(--card)}}
 th,td{{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}} th{{position:sticky;top:0;background:#1c2840;z-index:1}}
 th:first-child,td:first-child,.deck{{text-align:left}} .good{{background:var(--good)}} .bad{{background:var(--bad)}} .neutral{{background:var(--neutral)}} .mirror{{color:var(--muted)}}
-a{{color:var(--accent)}} input{{width:100%;max-width:420px;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);margin:0 0 10px}}
+a{{color:var(--accent)}} input,select{{width:100%;max-width:420px;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);margin:0 0 10px}}
+.lab-controls{{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;gap:12px;align-items:end}} .lab-controls label{{font-weight:700;color:var(--muted)}} .lab-controls button{{margin-bottom:10px}} .lab-result{{margin-top:14px}} .lab-field{{margin-bottom:12px}} .lab-chip{{display:inline-block;background:#22314d;border:1px solid var(--line);border-radius:999px;padding:4px 9px;margin:7px 6px 0 0}}
 button,.secondary-button{{display:inline-block;background:#2f6fd4;color:white;border:0;border-radius:7px;padding:8px 12px;cursor:pointer;text-decoration:none;font-weight:700}} button:hover{{background:#4383e8}}
 details{{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:8px 0;padding:10px}} summary{{cursor:pointer;font-weight:700}}
 .detail-grid{{display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:12px}} .variant-grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}} li{{margin:7px 0}} .downloads a{{margin-right:14px}}
@@ -1455,10 +1936,10 @@ dialog{{width:min(1050px,95vw);max-height:92vh;overflow:auto;background:var(--bg
 .change-box{{display:grid;grid-template-columns:1fr 1fr;gap:12px;background:var(--card);padding:12px;border-radius:8px}} .changed-add{{color:#70e0a8}} .changed-remove{{color:#ff8d9c}}
 .deck-columns{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}} .deck-list{{list-style:none;padding:0}} .deck-list li{{padding:4px 7px;border-bottom:1px solid var(--line)}}
 .explanation{{background:var(--card);border-left:4px solid var(--accent);padding:12px}} .dialog-actions{{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}}
-@media(max-width:800px){{main{{padding:14px}}.detail-grid,.variant-grid,.deck-columns,.change-box{{grid-template-columns:1fr}} th,td{{padding:7px}}}}
+@media(max-width:800px){{main{{padding:14px}}.detail-grid,.variant-grid,.deck-columns,.change-box,.lab-controls{{grid-template-columns:1fr}} th,td{{padding:7px}}}}
 </style></head><body><main>
 <h1>Metagame online do Limitless</h1>
-<div class="sub">Gerado em {generated} · Pokémon TCG {html.escape(args.formato)} · torneios encerrados · últimos {args.dias} dias · mínimo {args.min_jogadores} jogadores</div>
+<div class="sub">Gerado em {generated} · Pokémon TCG {html.escape(args.formato)} · torneios encerrados · {period_label} · {players_label}</div>
 <div class="cards">
   <div class="card"><strong>{len(tournaments)}</strong>torneios analisados</div>
   <div class="card"><strong>{data["total_entries"]}</strong>decklists/entradas</div>
@@ -1469,6 +1950,8 @@ dialog{{width:min(1050px,95vw);max-height:92vh;overflow:auto;background:var(--bg
 </div>
 {''.join(recommendations)}
 <p class="note">Os rankings separam fases BO1 e BO3. O WR esperado é ponderado pelo campo e suavizado para não supervalorizar amostras pequenas. A chance em cinco rodadas usa um modelo binomial. As alterações de lista são associações observadas, não garantias causais.</p>
+
+{laboratory_section}
 
 {user_section}
 
@@ -1495,12 +1978,22 @@ dialog{{width:min(1050px,95vw);max-height:92vh;overflow:auto;background:var(--bg
 <h2>Arquivos gerados</h2>
 <p class="downloads"><a href="decks.csv">decks.csv</a><a href="matchups.csv">matchups.csv</a><a href="decklists.csv">decklists.csv</a><a href="melhores_listas.csv">melhores_listas.csv</a><a href="variantes_recomendadas.csv">variantes_recomendadas.csv</a><a href="ranking_md1.csv">ranking_md1.csv</a><a href="ranking_md3.csv">ranking_md3.csv</a><a href="torneios.csv">torneios.csv</a></p>
 <p class="note">Fonte: páginas públicas e API oficial do Limitless TCG. Partidas com bye, adversário ausente, double loss ou jogador sem correspondência foram ignoradas ({data["skipped_matches"]} ocorrências).</p>
-</main>{''.join(dialogs)}<script>
+</main>{''.join(dialogs)}{laboratory_dialog}<script>
 function filterDecks(q){{q=q.toLowerCase();document.querySelectorAll('#deckTable tbody tr').forEach(r=>r.style.display=r.dataset.search.includes(q)?'':'none')}}
 function openList(id){{document.getElementById(id).showModal()}}
 function closeList(id){{document.getElementById(id).close()}}
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{{if(e.target===d)d.close()}}))
-</script></body></html>"""
+</script>{laboratory_script}</body></html>"""
+
+
+def parse_cli_date(value: str) -> datetime:
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "use a data no formato AAAA-MM-DD, por exemplo 2026-07-16"
+        ) from exc
+    return parsed.replace(tzinfo=timezone.utc)
 
 
 def parse_args() -> argparse.Namespace:
@@ -1508,6 +2001,13 @@ def parse_args() -> argparse.Namespace:
         description="Analisa decks dos torneios online encerrados do Limitless nas ultimas 4 semanas."
     )
     parser.add_argument("--dias", type=int, default=28, help="Janela em dias (padrao: 28)")
+    parser.add_argument(
+        "--data-inicial",
+        type=parse_cli_date,
+        default=None,
+        metavar="AAAA-MM-DD",
+        help="Usa todo o historico a partir desta data, ignorando --dias",
+    )
     parser.add_argument("--min-jogadores", type=int, default=21, help="Minimo de jogadores por torneio (padrao: 21)")
     parser.add_argument("--formato", default="STANDARD", help="Formato do Limitless ou TODOS (padrao: STANDARD)")
     parser.add_argument("--top-listas", type=int, default=5, help="Melhores listas por deck (padrao: 5)")
@@ -1542,7 +2042,12 @@ def main() -> int:
     output = args.saida or script_dir / f"relatorio_limitless_{datetime.now().strftime('%Y-%m-%d')}"
     output.mkdir(parents=True, exist_ok=True)
 
-    log("1/5 Buscando torneios encerrados, online e das ultimas quatro semanas...")
+    period_log = (
+        f"desde {args.data_inicial.strftime('%d/%m/%Y')}"
+        if args.data_inicial
+        else f"dos ultimos {args.dias} dias"
+    )
+    log(f"1/5 Buscando torneios encerrados e online {period_log}...")
     tournaments = fetch_tournaments(args, cache)
     if not tournaments:
         log("Nenhum torneio encontrado com os filtros informados.")
