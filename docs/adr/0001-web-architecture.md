@@ -20,7 +20,7 @@ exigem ciclos de vida e controles diferentes da coleta pública.
 - GitHub Actions + GitHub Pages: pipeline e hospedagem primários do export
   estático; Vercel permanece uma alternativa opcional.
 - `localStorage`: persistência padrão do Journal, sem conta e sem custo.
-- Supabase: Google Auth, PostgreSQL e RLS opcionais; o Journal só é gravado no
+- Supabase: Auth por e-mail, PostgreSQL e RLS opcionais; o Journal só é gravado no
   banco depois de uma ação explícita de sincronizar ou compartilhar.
 - Links bearer: leitura anônima restrita a agregados allowlisted por uma RPC.
 

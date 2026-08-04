@@ -35,7 +35,7 @@ export function AppShell({ children, activeFormat, activeEra }: { children: Reac
               <span className="status-dot" />
               <div><small>{activeFormat.toUpperCase()} ATIVO</small><strong>{activeEra}</strong></div>
             </div>
-            <Link href="/login" className="login-link"><LogIn size={17} /> Entrar com Google</Link>
+            <Link href="/login" className="login-link"><LogIn size={17} /> Entrar com e-mail</Link>
           </div>
         </aside>
         <header className="mobile-header">

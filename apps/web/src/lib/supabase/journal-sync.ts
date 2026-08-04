@@ -90,7 +90,7 @@ async function authenticatedClient(): Promise<{ client: SupabaseClient; user: Us
   if (!client) throw new Error("Supabase ainda não foi configurado.");
   const { data, error } = await client.auth.getUser();
   if (error) throw error;
-  if (!data.user) throw new Error("Entre com Google antes de sincronizar.");
+  if (!data.user) throw new Error("Entre com seu e-mail antes de sincronizar.");
   return { client, user: data.user };
 }
 

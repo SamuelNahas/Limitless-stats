@@ -33,7 +33,7 @@ O MVP inclui:
 - cinco políticas de cálculo para empates, aplicadas sem descartar o W-L-T;
 - Battle Journal manual com parser de lista exportada pelo Pokémon TCG Live;
 - armazenamento local e exportação JSON do histórico pessoal;
-- autenticação Google e sincronização manual opcional com Supabase;
+- autenticação por link de e-mail e sincronização manual opcional com Supabase;
 - links somente leitura, revogáveis, para estatísticas pessoais agregadas.
 
 Pokémon Pocket, feed social, importação automática do histórico pessoal e
@@ -177,7 +177,7 @@ tamanho da amostra; associação observada não implica vantagem causal.
 | --- | --- |
 | Journal em `localStorage` | Ativo e padrão. Torneios, listas, rodadas e notas ficam neste navegador até uma sincronização explícita. |
 | Exportação do Journal | Ativa. Gera um arquivo JSON local em texto legível. |
-| Login Google | Ativo quando as variáveis e o provider Supabase são configurados. |
+| Login por e-mail | Ativo quando as variáveis e o provider de e-mail do Supabase são configurados. |
 | Schema Supabase e RLS | Migration disponível; cada tabela pessoal é restrita ao proprietário. |
 | Sincronização do Journal | Ativa, manual e bidirecional. O merge mantém a versão mais recente de cada torneio. |
 | Exclusões sincronizadas | Uma exclusão local cria um tombstone e é aplicada na nuvem na próxima sincronização concluída. |
@@ -202,14 +202,14 @@ na requisição inicial ao GitHub Pages; o navegador o envia diretamente à RPC 
 Supabase. O banco armazena apenas o hash. Qualquer pessoa com a URL completa
 pode consultar o resumo até o link ser revogado.
 
-O resumo mostra `display_name` — inicialmente o nome completo recebido do
-Google —, política de empate, número de eventos, W/L/T total e W/L/T agregado
+O resumo mostra `display_name` — inicialmente “Treinador” —, política de
+empate, número de eventos, W/L/T total e W/L/T agregado
 por deck próprio e arquétipo adversário. Ele não inclui e-mail, eventos ou datas
 individuais, notas, nomes de pessoas adversárias nem texto das listas. A UI
 atual não define expiração automática; revogue manualmente os links que não
 devem mais funcionar. A rota usa `noindex`, mas isso não substitui o segredo.
 
-## Supabase e login Google
+## Supabase e login por e-mail
 
 O app público e o Journal local não exigem Supabase. Para habilitar o fluxo de
 login existente:
@@ -226,23 +226,18 @@ login existente:
    [`supabase/migrations/202608030001_initial_schema.sql`](supabase/migrations/202608030001_initial_schema.sql).
    A migration cria o catálogo, o domínio pessoal, RLS, o perfil automático e
    as RPCs de compartilhamento.
-4. No Google Auth Platform, crie um OAuth Client do tipo **Web application**.
-   Cadastre a origem do app, por exemplo `http://localhost:3000`, em
-   *Authorized JavaScript origins*.
-5. Em *Authorized redirect URIs* do Google, cadastre o callback exibido pelo
-   provider Google do Supabase:
-   `https://<project-ref>.supabase.co/auth/v1/callback`.
-6. No Supabase, habilite **Authentication -> Providers -> Google** e informe o
-   Client ID e o Client Secret.
-7. Em **Authentication -> URL Configuration**, defina a Site URL e autorize os
+4. No Supabase, mantenha **Authentication -> Providers -> Email** habilitado.
+5. Em **Authentication -> URL Configuration**, defina a Site URL e autorize os
    callbacks do app:
    `http://localhost:3000/auth/callback/` e, em produção,
    `https://<host>/<base-path>/auth/callback/`.
+6. Solicite o link na tela `/login` e abra a mensagem no mesmo navegador em que
+   iniciou o acesso.
 
-No GitHub Pages, a origem JavaScript do Google não inclui caminho — por exemplo,
-`https://samuelnahas.github.io` —, enquanto o redirect autorizado no Supabase
-inclui o repositório:
-`https://samuelnahas.github.io/Limitless-stats/auth/callback/`.
+O serviço de e-mail embutido do Supabase é adequado somente para testes e envia
+apenas para membros autorizados da organização, com limite reduzido. Para abrir
+cadastro ao público, configure um provedor SMTP compatível em **Authentication
+-> Emails -> SMTP Settings**.
 
 Variáveis disponíveis:
 
@@ -253,11 +248,10 @@ Variáveis disponíveis:
 | `NEXT_PUBLIC_SITE_URL` | Origem canônica usada nos metadados; o workflow calcula a URL do Pages se estiver ausente. |
 | `LIMITLESS_API_KEY` | Chave opcional do coletor Python; não é usada pelo frontend. |
 
-Nunca exponha uma `service_role` no navegador, no Git ou em variáveis
-`NEXT_PUBLIC_*`. O login solicita apenas identidade básica do Google; o projeto
-não precisa de acesso ao Drive, Calendar ou Gmail. Consulte os guias oficiais de
-[Supabase com Next.js](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs)
-e [login Google](https://supabase.com/docs/guides/auth/social-login/auth-google).
+Nunca exponha uma `service_role` ou chave `sb_secret_` no navegador, no Git ou
+em variáveis `NEXT_PUBLIC_*`; use somente a chave `sb_publishable_`. Consulte os
+guias oficiais de [login sem senha](https://supabase.com/docs/reference/javascript/auth-signinwithotp)
+e [SMTP do Supabase](https://supabase.com/docs/guides/auth/auth-smtp).
 O coletor Python não carrega `apps/web/.env.local`; forneça a chave Limitless no
 ambiente do processo ou no secret `LIMITLESS_API_KEY` do GitHub Actions.
 

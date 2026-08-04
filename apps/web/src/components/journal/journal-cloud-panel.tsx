@@ -88,7 +88,7 @@ export function JournalCloudPanel({ events, deckNames, tiePolicy, onSynced }: { 
   if (!configured) return (
     <section className="sync-callout">
       <Cloud size={25} />
-      <div><strong>Journal local ativo</strong><p>Para sincronizar gratuitamente, configure o projeto Supabase e o Google OAuth seguindo o README.</p></div>
+      <div><strong>Journal local ativo</strong><p>Para sincronizar gratuitamente, configure o projeto Supabase e o acesso por e-mail seguindo o README.</p></div>
       <NextLink href="/login" className="button-secondary">Configurar login <LogIn size={15} /></NextLink>
     </section>
   );
@@ -96,8 +96,8 @@ export function JournalCloudPanel({ events, deckNames, tiePolicy, onSynced }: { 
   if (!user) return (
     <section className="sync-callout">
       <Cloud size={25} />
-      <div><strong>Sincronização opcional</strong><p>Seus dados continuam locais e privados. Entre com Google apenas se quiser usá-los em outros dispositivos.</p></div>
-      <NextLink href="/login" className="button-secondary">Entrar com Google <LogIn size={15} /></NextLink>
+      <div><strong>Sincronização opcional</strong><p>Seus dados continuam locais e privados. Entre por e-mail apenas se quiser usá-los em outros dispositivos.</p></div>
+      <NextLink href="/login" className="button-secondary">Entrar com e-mail <LogIn size={15} /></NextLink>
     </section>
   );
 

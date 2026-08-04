@@ -11,7 +11,7 @@
 
 ## P1 — conta gratuita opcional
 
-- Login Google via Supabase.
+- Login sem senha por link de e-mail via Supabase.
 - Sincronização manual e bidirecional de torneios, listas e rodadas.
 - Exclusões locais propagadas na sincronização seguinte.
 - Links bearer revogáveis para um resumo somente leitura.

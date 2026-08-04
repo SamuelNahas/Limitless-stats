@@ -32,8 +32,8 @@ programa de recompensa financeira.
 Relatos especialmente relevantes incluem:
 
 - bypass de RLS ou acesso cruzado a Journal, listas e perfis;
-- vazamento de segredo de link, token OAuth ou credencial de CI;
-- redirect OAuth inseguro, sequestro de sessão ou CSRF;
+- vazamento de segredo de link, token de sessão ou credencial de CI;
+- redirect de autenticação inseguro, sequestro de sessão ou CSRF;
 - XSS por nomes, notas, listas importadas ou dados públicos coletados;
 - exposição de informações que a RPC de compartilhamento deve omitir;
 - dependência comprometida com caminho de exploração no projeto.
@@ -47,7 +47,7 @@ execução de código, quebra de autorização ou exposição de dados privados.
 - Nunca use uma chave `service_role` em `NEXT_PUBLIC_*` ou no frontend.
 - Trate a URL completa de `/shared`, inclusive o fragmento, como uma credencial
   bearer e revogue links enviados ao destinatário errado.
-- Mantenha a chave opcional do Limitless e segredos OAuth em secrets do ambiente.
+- Mantenha a chave opcional do Limitless e credenciais SMTP em secrets do ambiente.
 - Após suspeita de vazamento, revogue e rotacione a credencial antes de
   republicar.
 - Teste policies com usuários A/B e papel `anon` após toda migration.

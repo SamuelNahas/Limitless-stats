@@ -431,9 +431,14 @@ label { color: var(--text-soft); font-size: 11px; font-weight: 750; }
 .auth-benefits { display: grid; gap: 9px; margin: 22px 0; padding: 0; list-style: none; text-align: left; }
 .auth-benefits li { display: flex; align-items: center; gap: 9px; padding: 9px 10px; color: var(--text-soft); border: 1px solid var(--line-soft); border-radius: 8px; font-size: 10px; }
 .auth-benefits svg { color: var(--green); }
-.google-button { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #1f2733; border: 0; border-radius: 9px; background: white; cursor: pointer; font-size: 12px; font-weight: 800; }
-.google-button:hover { background: #edf0f6; }
-.google-button span { width: 24px; height: 24px; display: grid; place-items: center; color: #4285f4; border-radius: 50%; font: 900 15px/1 Arial,sans-serif; }
+.email-login-form { display: grid; gap: 9px; text-align: left; }
+.email-login-form label { color: var(--text-soft); font-size: 10px; font-weight: 750; }
+.email-login-form input { width: 100%; min-height: 47px; padding: 0 13px; color: var(--text); border: 1px solid var(--line); border-radius: 9px; outline: 0; background: #0d131d; }
+.email-login-form input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(134,119,255,.1); }
+.email-login-form .button { width: 100%; margin-top: 3px; }
+.login-error { margin: 0; color: var(--red); font-size: 9px; text-align: center; }
+.email-sent { display: grid; justify-items: center; gap: 7px; padding: 18px; color: var(--green); border: 1px solid rgba(69,218,160,.2); border-radius: 11px; background: rgba(69,218,160,.055); }
+.email-sent strong { color: white; font-size: 13px; }.email-sent p { margin: 0; color: var(--muted); font-size: 9px; }.email-sent p span { color: var(--text-soft); }.email-sent .button-ghost { min-height: 34px; margin-top: 4px; }
 .continue-local { display: inline-block; margin-top: 17px; color: var(--muted); font-size: 10px; text-decoration: underline; text-underline-offset: 3px; }
 .config-notice { padding: 13px; border: 1px solid rgba(242,166,90,.23); border-radius: 9px; background: rgba(242,166,90,.055); text-align: left; }
 .config-notice strong { color: #ffc17b; font-size: 10px; }
