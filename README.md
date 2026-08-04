@@ -1,4 +1,4 @@
-# Limitless Stats
+# SH Meta Games
 
 Metagame público e diário competitivo local-first para **Pokémon TCG Standard
 Online**. O projeto transforma resultados encerrados do
@@ -8,7 +8,7 @@ histórico pessoal do jogador.
 
 **Aplicação:** <https://samuelnahas.github.io/Limitless-stats/>
 
-> O Limitless Stats é uma ferramenta estatística independente. Os resultados
+> O SH Meta Games é uma ferramenta estatística independente. Os resultados
 > observados descrevem a amostra coletada; não garantem desempenho futuro nem
 > substituem análise de formato, lista, pilotagem e tamanho da amostra.
 
@@ -323,7 +323,7 @@ Planos e limites mudam. Confirme os termos atuais no
   remotos diretamente.
 - Pokémon, seus nomes, personagens e artes pertencem aos respectivos titulares,
   incluindo Nintendo, Creatures Inc., GAME FREAK inc. e The Pokémon Company.
-  O Limitless Stats é um projeto independente de fãs, sem afiliação, patrocínio
+  O SH Meta Games é um projeto independente de fãs, sem afiliação, patrocínio
   ou endosso dessas entidades.
 
 ## Licenciamento do código

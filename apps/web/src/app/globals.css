@@ -68,15 +68,15 @@ button { color: inherit; }
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid rgba(143, 128, 255, 0.45);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(134, 119, 255, 0.24), rgba(32, 27, 67, 0.4));
-  box-shadow: 0 0 26px rgba(122, 105, 255, 0.22), inset 0 0 0 4px rgba(9, 12, 20, 0.7);
+  overflow: hidden;
+  border: 1px solid rgba(109, 224, 236, 0.48);
+  border-radius: 11px;
+  background: linear-gradient(145deg, #7968f3 0%, #493ba8 54%, #173b54 100%);
+  box-shadow: 0 0 26px rgba(94, 116, 255, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
-.brand-mark::before, .brand-mark::after { content: ""; position: absolute; background: var(--violet); opacity: 0.9; }
-.brand-mark::before { width: 31px; height: 1px; transform: rotate(-35deg); }
-.brand-mark::after { width: 1px; height: 31px; transform: rotate(-35deg); }
-.brand-mark-core { width: 9px; height: 9px; border: 2px solid #c8c0ff; border-radius: 50%; background: var(--bg); z-index: 1; }
+.brand-mark::before { content: ""; position: absolute; inset: -35% 44% -35% auto; width: 8px; background: rgba(255, 255, 255, .15); transform: rotate(28deg); }
+.brand-mark::after { content: ""; position: absolute; inset: auto 5px 5px auto; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+.brand-mark-core { position: relative; z-index: 1; color: white; font: 900 13px/1 var(--font-display); letter-spacing: -.04em; text-shadow: 0 2px 8px rgba(0, 0, 0, .38); }
 .brand-copy { display: flex; flex-direction: column; line-height: 1.05; }
 .brand-copy strong { font-family: var(--font-display); letter-spacing: 0.12em; font-size: 16px; }
 .brand-copy small { margin-top: 5px; color: var(--muted); font: 700 9px/1 var(--font-body); letter-spacing: 0.17em; }

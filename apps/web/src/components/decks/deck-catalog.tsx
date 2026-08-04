@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
+import { MinimumMetaShareFilter, useMinimumMetaSharePreference } from "@/components/filters/minimum-meta-share-filter";
 import { MinimumPlayersFilter, useMinimumPlayersPreference } from "@/components/filters/minimum-players-filter";
 import { calculateFilteredMeta } from "@/lib/meta-filters";
 import { DeckCard } from "./deck-card";
@@ -19,7 +20,8 @@ type DeckCatalogProps = {
 export function DeckCatalog({ decks, manifest, tournamentDeckStats, tournaments }: DeckCatalogProps) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("share");
-  const [minimumMetaShare, setMinimumMetaShare] = useState(0);
+  const minimumMetaSharePreference = useMinimumMetaSharePreference();
+  const { minimumMetaShare } = minimumMetaSharePreference;
   const minimumPlayersPreference = useMinimumPlayersPreference(manifest.scope.minimumPlayers);
   const { minimumPlayers } = minimumPlayersPreference;
   const maximumPlayers = Math.max(...tournaments.map((tournament) => tournament.players), manifest.scope.minimumPlayers);
@@ -49,7 +51,7 @@ export function DeckCatalog({ decks, manifest, tournamentDeckStats, tournaments 
 
   function clearFilters() {
     setQuery("");
-    setMinimumMetaShare(0);
+    minimumMetaSharePreference.reset();
     minimumPlayersPreference.reset();
   }
 
@@ -65,11 +67,7 @@ export function DeckCatalog({ decks, manifest, tournamentDeckStats, tournaments 
       </div>
       <div className="search-toolbar">
         <div className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar Dragapult, Greninja, Festival Lead..." aria-label="Buscar deck" /></div>
-        <label className="minimum-share-field" htmlFor="minimum-meta-share">
-          <span>Meta share mín.</span>
-          <input id="minimum-meta-share" type="number" min="0" max="100" step="0.1" value={minimumMetaShare} onChange={(event) => setMinimumMetaShare(Math.max(0, Number(event.target.value) || 0))} />
-          <span>%</span>
-        </label>
+        <MinimumMetaShareFilter preference={minimumMetaSharePreference} />
         <div className="sort-field"><SlidersHorizontal size={16} /><select value={sort} onChange={(event) => setSort(event.target.value as SortKey)} aria-label="Ordenar decks">
           <option value="share">Maior presença</option><option value="result">Melhor resultado</option><option value="top8">Conversão em Top 8</option><option value="name">Nome A–Z</option>
         </select></div>

@@ -6,11 +6,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: {
-    default: "Limitless Stats — Pokémon TCG Meta",
-    template: "%s · Limitless Stats",
+    default: "SH Meta Games — Pokémon TCG Meta",
+    template: "%s · SH Meta Games",
   },
   description: "Metagame, decks, matchups e diário competitivo do Pokémon TCG Standard Online.",
-  applicationName: "Limitless Stats",
+  applicationName: "SH Meta Games",
   robots: { index: true, follow: true },
 };
 

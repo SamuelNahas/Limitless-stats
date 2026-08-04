@@ -1,16 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <radialGradient id="bg" cx="45%" cy="35%" r="70%">
-      <stop offset="0" stop-color="#342a73"/>
-      <stop offset="1" stop-color="#0b0f18"/>
-    </radialGradient>
+    <linearGradient id="bg" x1="10%" y1="5%" x2="90%" y2="95%">
+      <stop offset="0" stop-color="#8a79ff"/>
+      <stop offset="0.55" stop-color="#4a3aa8"/>
+      <stop offset="1" stop-color="#173b54"/>
+    </linearGradient>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="2" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <circle cx="32" cy="32" r="29" fill="url(#bg)" stroke="#8f80ff" stroke-width="2"/>
-  <path d="M10 37 54 27M27 10l10 44" stroke="#8f80ff" stroke-width="2" opacity=".85" filter="url(#glow)"/>
-  <circle cx="32" cy="32" r="8" fill="#0b0f18" stroke="#d1caff" stroke-width="3"/>
-  <circle cx="32" cy="32" r="2.5" fill="#9b8cff"/>
+  <rect x="5" y="5" width="54" height="54" rx="15" fill="url(#bg)" stroke="#8fe9f0" stroke-width="2"/>
+  <path d="M42 3 24 61" stroke="#fff" stroke-width="7" opacity=".1"/>
+  <text x="32" y="39" fill="#fff" font-family="Arial, sans-serif" font-size="22" font-weight="900" text-anchor="middle" filter="url(#glow)">SH</text>
+  <circle cx="51" cy="51" r="3" fill="#42d6e8" filter="url(#glow)"/>
 </svg>
