@@ -1,0 +1,17 @@
+import type { Metadata } from "next";
+import { DeckCatalog } from "@/components/decks/deck-catalog";
+import { PageHeader } from "@/components/ui/page-header";
+import { decks, manifest } from "@/data/snapshot";
+import { formatDate } from "@/lib/stats";
+
+export const metadata: Metadata = { title: "Decks" };
+
+export default function DecksPage() {
+  return (
+    <div className="content-container">
+      <PageHeader eyebrow="Archetype database" title="Escolha seu próximo deck." description={`Explore todos os arquétipos observados no ${manifest.scope.formatName} Online, compare presença, desempenho, listas representativas e seus melhores confrontos.`} dateLabel={`Dados até ${formatDate(manifest.scope.dateTo || manifest.generatedAt)}`} />
+      <div className="filter-strip"><span className="filter-chip"><span className="status-dot" /><strong>{manifest.scope.formatName}</strong></span><span className="filter-chip">Era <strong>{manifest.scope.eraName}</strong></span><span className="filter-chip">Online</span></div>
+      <DeckCatalog decks={decks} />
+    </div>
+  );
+}

@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "analisar_limitless.py"
+      - "scripts/**/*.py"
+      - "apps/web/**"
+      - "configs/**"
+      - "packages/contracts/**"
+      - "supabase/**"
+      - "package.json"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/publicar-pages.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "analisar_limitless.py"
+      - "scripts/**/*.py"
+      - "apps/web/**"
+      - "configs/**"
+      - "packages/contracts/**"
+      - "supabase/**"
+      - "package.json"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/publicar-pages.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Instalar dependências
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Executar lint
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: Verificar tipos
+        working-directory: apps/web
+        run: npm run typecheck
+
+      - name: Executar testes
+        working-directory: apps/web
+        run: npm run test
+
+      - name: Verificar exportação estática
+        working-directory: apps/web
+        env:
+          GITHUB_PAGES: "true"
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verificar sintaxe Python
+        run: python3 -m compileall -q analisar_limitless.py scripts

@@ -1,0 +1,28 @@
+# JavaScript
+node_modules/
+.next/
+out/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+.cache_limitless/
+
+# Environment and local data
+.env
+.env.*
+!.env.example
+*.local
+
+# Generated reports
+relatorio_limitless_*/
+site/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/

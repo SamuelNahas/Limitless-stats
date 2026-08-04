@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://limitless-stats.local/schemas/era.schema.json",
+  "title": "Limitless Stats era configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "gameId", "platformId", "formatId", "formatName", "name", "startsAt", "enabled", "collection", "calculation"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "gameId": { "type": "string", "minLength": 1 },
+    "platformId": { "type": "string", "minLength": 1 },
+    "formatId": { "type": "string", "minLength": 1 },
+    "formatName": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "shortName": { "type": "string", "minLength": 1 },
+    "startsAt": { "type": "string", "format": "date-time" },
+    "endsAt": { "type": ["string", "null"], "format": "date-time" },
+    "enabled": { "type": "boolean" },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tournamentType", "minimumPlayers", "sourceFormat"],
+      "properties": {
+        "tournamentType": { "enum": ["online", "in_person", "all"] },
+        "minimumPlayers": { "type": "integer", "minimum": 1 },
+        "sourceFormat": { "type": "string", "minLength": 1 }
+      }
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rankingTiePolicy", "modelVersion"],
+      "properties": {
+        "rankingTiePolicy": { "enum": ["ignore", "loss", "half", "third", "win"] },
+        "modelVersion": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

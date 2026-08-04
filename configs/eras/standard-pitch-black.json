@@ -1,0 +1,22 @@
+{
+  "$schema": "../../packages/contracts/schemas/era.schema.json",
+  "id": "standard-pitch-black",
+  "gameId": "ptcg",
+  "platformId": "ptcgl",
+  "formatId": "standard",
+  "formatName": "Standard",
+  "name": "Standard — Pitch Black",
+  "shortName": "Pitch Black",
+  "startsAt": "2026-07-16T00:00:00Z",
+  "endsAt": null,
+  "enabled": true,
+  "collection": {
+    "tournamentType": "online",
+    "minimumPlayers": 1,
+    "sourceFormat": "STANDARD"
+  },
+  "calculation": {
+    "rankingTiePolicy": "half",
+    "modelVersion": 1
+  }
+}
