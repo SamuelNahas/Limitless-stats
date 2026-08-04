@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarRange, Gamepad2, Layers3, Swords, Trophy, UsersRound } from "lucide-react";
+import { ArrowRight, CalendarRange, Gamepad2, Layers3, Swords, Trophy } from "lucide-react";
 import { DeckCard } from "@/components/decks/deck-card";
+import { MinimumPlayersFilter, useMinimumPlayersPreference } from "@/components/filters/minimum-players-filter";
 import { MetaRanking } from "@/components/meta/meta-ranking";
 import { StatCard } from "@/components/ui/stat-card";
 import { calculateFilteredMeta } from "@/lib/meta-filters";
@@ -18,7 +19,8 @@ type MetaDashboardProps = {
 };
 
 export function MetaDashboard({ decks, manifest, tournamentDeckStats, tournaments }: MetaDashboardProps) {
-  const [minimumPlayers, setMinimumPlayers] = useState(manifest.scope.minimumPlayers);
+  const minimumPlayersPreference = useMinimumPlayersPreference(manifest.scope.minimumPlayers);
+  const { minimumPlayers } = minimumPlayersPreference;
   const maximumPlayers = Math.max(...tournaments.map((tournament) => tournament.players), manifest.scope.minimumPlayers);
   const meta = useMemo(
     () => calculateFilteredMeta(
@@ -41,19 +43,7 @@ export function MetaDashboard({ decks, manifest, tournamentDeckStats, tournament
         <span className="filter-chip"><span className="status-dot" /><strong>{manifest.scope.formatName}</strong></span>
         <span className="filter-chip">Online · TCG Live</span>
         <span className="filter-chip">Era <strong>{manifest.scope.eraName}</strong></span>
-        <label className="filter-number" htmlFor="minimum-players">
-          <UsersRound size={14} />
-          <span>Torneios com pelo menos</span>
-          <input
-            id="minimum-players"
-            type="number"
-            min={manifest.scope.minimumPlayers}
-            max={maximumPlayers}
-            value={minimumPlayers}
-            onChange={(event) => setMinimumPlayers(Math.max(manifest.scope.minimumPlayers, Number(event.target.value) || manifest.scope.minimumPlayers))}
-          />
-          <span>jogadores</span>
-        </label>
+        <MinimumPlayersFilter id="meta-minimum-players" maximumPlayers={maximumPlayers} preference={minimumPlayersPreference} />
         <span className="filter-spacer" />
         <span className="update-note">{isFiltered ? "Cálculo atualizado pelo filtro" : `Snapshot ${manifest.snapshotId}`}</span>
       </div>
