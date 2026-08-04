@@ -10,4 +10,9 @@ describe("archetype artwork coverage", () => {
       .map((deck) => deck.id);
     expect(missing).toEqual([]);
   });
+
+  it("covers archetypes discovered by the live data refresh", () => {
+    expect(hasArchetypeArtwork("wailord-ex")).toBe(true);
+    expect(hasArchetypeArtwork("heatran-metang")).toBe(true);
+  });
 });
