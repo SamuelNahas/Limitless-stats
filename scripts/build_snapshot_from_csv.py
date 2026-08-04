@@ -34,6 +34,17 @@ def decimal(value: str | None) -> float:
     return float(value or 0)
 
 
+def match_record(value: str | None) -> dict[str, int]:
+    parts = (value or "").split("-")
+    if len(parts) != 3:
+        return {"wins": 0, "losses": 0, "ties": 0}
+    return {
+        "wins": integer(parts[0]),
+        "losses": integer(parts[1]),
+        "ties": integer(parts[2]),
+    }
+
+
 def slugify(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", normalized.casefold()).strip("-")
@@ -148,6 +159,7 @@ def main() -> int:
         )
 
     canonical_decklists: dict[str, dict] = {}
+    tournament_entries: dict[tuple[str, str], dict] = {}
     if decklists_path.exists():
         best_url_to_deck = {
             items[0]["url"]: deck_id
@@ -156,6 +168,16 @@ def main() -> int:
         }
         with decklists_path.open(encoding="utf-8-sig", newline="") as file:
             for row in csv.DictReader(file):
+                entry_key = (row["torneio_id"], row["url_lista"] or row["jogador"])
+                tournament_entries.setdefault(
+                    entry_key,
+                    {
+                        "tournamentId": row["torneio_id"],
+                        "deckId": name_to_id.get(row["deck"], slugify(row["deck"])),
+                        "placing": integer(row["colocacao"]) or None,
+                        "record": match_record(row["record"]),
+                    },
+                )
                 deck_id = best_url_to_deck.get(row["url_lista"])
                 if not deck_id:
                     continue
@@ -226,6 +248,7 @@ def main() -> int:
             "matchupsBo3": "matchups-bo3.json",
             "lists": "lists.json",
             "canonicalDecklists": "canonical-decklists.json",
+            "tournamentDeckStats": "tournament-deck-stats.json",
             "tournaments": "tournaments.json",
         },
         "warnings": [],
@@ -237,7 +260,28 @@ def main() -> int:
     dump(output / "matchups-bo1.json", matchups["bo1"])
     dump(output / "matchups-bo3.json", matchups["bo3"])
     dump(output / "lists.json", lists)
+    tournament_deck_stats: dict[tuple[str, str], dict] = {}
+    for entry in tournament_entries.values():
+        key = (entry["tournamentId"], entry["deckId"])
+        stats = tournament_deck_stats.setdefault(
+            key,
+            {
+                "tournamentId": entry["tournamentId"],
+                "deckId": entry["deckId"],
+                "entries": 0,
+                "titles": 0,
+                "top8": 0,
+                "record": {"wins": 0, "losses": 0, "ties": 0},
+            },
+        )
+        stats["entries"] += 1
+        stats["titles"] += entry["placing"] == 1
+        stats["top8"] += entry["placing"] is not None and entry["placing"] <= 8
+        for result in ("wins", "losses", "ties"):
+            stats["record"][result] += entry["record"][result]
+
     dump(output / "canonical-decklists.json", canonical_decklists)
+    dump(output / "tournament-deck-stats.json", list(tournament_deck_stats.values()))
     dump(output / "tournaments.json", tournaments)
     print(f"Snapshot JSON v1 criado em {output} ({len(decks)} decks, {len(tournaments)} torneios).")
     return 0

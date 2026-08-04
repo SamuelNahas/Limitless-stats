@@ -6,6 +6,7 @@ import listsData from "../../public/data/v1/lists.json";
 import manifestData from "../../public/data/v1/manifest.json";
 import matchupsAllData from "../../public/data/v1/matchups-all.json";
 import tournamentsData from "../../public/data/v1/tournaments.json";
+import tournamentDeckStatsData from "../../public/data/v1/tournament-deck-stats.json";
 import type {
   CanonicalDecklist,
   DataManifest,
@@ -13,12 +14,14 @@ import type {
   Matchup,
   PublishedList,
   Tournament,
+  TournamentDeckStat,
 } from "@/types/domain";
 
 export const manifest = manifestData as DataManifest;
 export const decks = (decksData as Deck[]).filter((deck) => deck.id !== "sem-classificacao" && deck.id !== "other");
 export const matchupsAll = matchupsAllData as Matchup[];
 export const tournaments = tournamentsData as Tournament[];
+export const tournamentDeckStats = tournamentDeckStatsData as TournamentDeckStat[];
 export const publishedLists = listsData as Record<string, PublishedList[]>;
 export const canonicalDecklists = canonicalDecklistsData as Record<string, CanonicalDecklist>;
 

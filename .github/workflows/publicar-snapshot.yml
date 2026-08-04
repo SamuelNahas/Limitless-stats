@@ -1,9 +1,16 @@
-name: Atualizar dados e publicar GitHub Pages
+name: Publicar snapshot existente no GitHub Pages
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 6 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+      - "packages/contracts/**"
+      - "supabase/**"
+      - "package.json"
+      - ".github/workflows/publicar-snapshot.yml"
 
 permissions:
   contents: read
@@ -15,9 +22,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gerar-e-publicar:
+  publicar:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -25,47 +32,6 @@ jobs:
     steps:
       - name: Baixar repositório
         uses: actions/checkout@v4
-
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Restaurar cache incremental do Limitless
-        uses: actions/cache@v4
-        with:
-          path: .cache_limitless
-          key: limitless-${{ runner.os }}-${{ hashFiles('configs/eras/standard-pitch-black.json') }}-${{ github.run_id }}
-          restore-keys: |
-            limitless-${{ runner.os }}-${{ hashFiles('configs/eras/standard-pitch-black.json') }}-
-
-      - name: Coletar dados legados do Limitless
-        env:
-          LIMITLESS_API_KEY: ${{ secrets.LIMITLESS_API_KEY }}
-        run: >-
-          python3 scripts/run_collection.py
-          --era-config configs/eras/standard-pitch-black.json
-          --output site
-
-      - name: Converter CSVs em snapshot JSON
-        run: >-
-          python3 scripts/build_snapshot_from_csv.py
-          --input site
-          --output apps/web/public/data/v1
-          --era-config configs/eras/standard-pitch-black.json
-
-      - name: Disponibilizar CSVs no site
-        run: |
-          mkdir -p apps/web/public/downloads
-          cp site/*.csv apps/web/public/downloads/
-
-      - name: Arquivar CSVs da coleta
-        uses: actions/upload-artifact@v4
-        with:
-          name: dados-limitless-csv
-          path: site/*.csv
-          if-no-files-found: error
-          retention-days: 30
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -90,7 +56,7 @@ jobs:
         working-directory: apps/web
         run: npm run test
 
-      - name: Gerar exportação estática do Next.js
+      - name: Gerar exportação estática do snapshot existente
         working-directory: apps/web
         env:
           GITHUB_PAGES: "true"

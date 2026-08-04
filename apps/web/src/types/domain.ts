@@ -51,6 +51,15 @@ export type Tournament = {
   url: string;
 };
 
+export type TournamentDeckStat = {
+  tournamentId: string;
+  deckId: string;
+  entries: number;
+  titles: number;
+  top8: number;
+  record: MatchRecord;
+};
+
 export type PublishedList = {
   rank: number;
   player: string;
