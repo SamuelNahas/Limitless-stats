@@ -2,6 +2,14 @@ name: Atualizar dados e publicar GitHub Pages
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+      - "scripts/**"
+      - "configs/**"
+      - ".github/workflows/publicar-pages.yml"
   schedule:
     - cron: "17 6 * * *"
 
@@ -89,6 +97,17 @@ jobs:
       - name: Executar testes
         working-directory: apps/web
         run: npm run test
+
+      - name: Verificar configuração opcional do login
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::warning::Login por e-mail ficará desabilitado neste deploy: configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY em Settings > Secrets and variables > Actions > Variables."
+          else
+            echo "Configuração pública do Supabase encontrada."
+          fi
 
       - name: Gerar exportação estática do Next.js
         working-directory: apps/web
