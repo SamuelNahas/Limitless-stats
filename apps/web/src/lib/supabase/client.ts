@@ -17,8 +17,8 @@ export function createClient(): SupabaseClient | null {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
-        flowType: "pkce",
+        detectSessionInUrl: true,
+        flowType: "implicit",
         storage: window.localStorage,
         storageKey: AUTH_STORAGE_KEY,
       },
