@@ -25,9 +25,9 @@ export default function AuthCallbackPage() {
       }
 
       const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
-      const tokenHash = url.searchParams.get("token_hash");
       const queryError = url.searchParams.get("error_description") || url.searchParams.get("error");
+      const tokenHash = url.searchParams.get("token_hash");
+      const code = url.searchParams.get("code");
       const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
@@ -35,17 +35,22 @@ export default function AuthCallbackPage() {
 
       let authError: { message: string } | null = null;
 
-      if (code) {
-        const result = await client.auth.exchangeCodeForSession(code);
+      if (queryError || hashError) {
+        authError = { message: queryError || hashError || "Não foi possível validar o link." };
+      } else if (accessToken && refreshToken) {
+        const result = await client.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
         authError = result.error;
       } else if (tokenHash) {
         const result = await client.auth.verifyOtp({ token_hash: tokenHash, type: "email" });
         authError = result.error;
-      } else if (accessToken && refreshToken) {
-        const result = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-        authError = result.error;
-      } else if (queryError || hashError) {
-        authError = { message: queryError || hashError || "Não foi possível validar o link." };
+      } else if (code) {
+        const result = await client.auth.exchangeCodeForSession(code);
+        authError = result.error
+          ? { message: "Este link foi criado pelo fluxo antigo de login e depende do navegador onde foi solicitado. Solicite um novo link para usar o login corrigido." }
+          : null;
       } else {
         const { data, error } = await client.auth.getSession();
         authError = error || (data.session ? null : { message: "O link não trouxe uma sessão válida." });
@@ -67,6 +72,8 @@ export default function AuthCallbackPage() {
         }
         return;
       }
+
+      window.history.replaceState({}, document.title, `${url.pathname}${url.searchParams.has("code") ? "" : url.search}`);
 
       if (active) {
         setStatus("success");
