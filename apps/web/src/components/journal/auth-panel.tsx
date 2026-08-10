@@ -98,7 +98,7 @@ export function AuthPanel() {
           <div className="email-sent">
             <Mail size={22} />
             <strong>Confira seu e-mail</strong>
-            <p>Enviamos um link para <span>{email}</span>. Abra-o neste navegador para concluir o acesso.</p>
+            <p>Enviamos um link para <span>{email}</span>. Você pode abri-lo no navegador do seu celular ou computador para concluir o acesso.</p>
             <button className="button-ghost" onClick={() => { setSent(false); setError(""); }}>Usar outro e-mail</button>
           </div>
         ) : (
